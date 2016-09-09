@@ -1,0 +1,142 @@
+# Initialise Project
+```{r adjust_directory_if_needed}
+# Uncomment lines below if rmd file is placed in a subdirectory
+# library(knitr)
+# opts_knit$set(root.dir = normalizePath('../')) 
+```
+
+```{r load_project}
+# 1. Set options in config/global.dcf
+# 2. Load packages listed in config/global.dcf
+# 3. Import functions and coe in lib directory
+# 4. Load data in data directory
+# 5. Run data manipulations in munge directory 
+library(ProjectTemplate); load.project()
+```             
+
+# Explore
+```{r}
+# sample size
+nrow(mlq)
+
+# check for missing data
+sapply(mlq, function(X) sum(is.na(X)))
+
+```
+
+# Exploratory factor analysis
+```{r}
+# check for 6 factors
+psych::scree(mlq[,v$mlq_items])
+psych::fa.parallel(mlq[,v$mlq_items])
+
+# examine 6 factor EFA
+fac1 <- factanal(mlq[,v$mlq_items], 6, rotation = "promax")
+print(fac1, cutoff = .30)
+
+fl <- round(unclass(fac1$loadings), 2)
+fl
+
+write.csv(fl, "output/efa-factor-loadings.csv")
+```
+
+
+# Confirmatory factor analysis
+```{r}
+models <- list()
+fits <- list()
+
+# paste(v$mlq_items, collapse = " + ")
+
+# one factor model
+models$m1 <- 
+    'global  =~ mbea1 + mbea2 + mbea3 + mbep1 + mbep2 + mbep3 + 
+            cr1 + cr2 + cr3 + ac1 + ac2 + ac3 + 
+            is1 + is2 + is3 + ic1 + ic2 + ic3'
+
+# two factor model
+models$m2 <- 
+    ' transformational =~ ac1 + ac2 + ac3  + is1 + is2 + is3 + ic1 + ic2 + ic3
+    transactional =~ mbep1 + mbep2 + mbep3 +mbea1 + mbea2 + mbea3 + cr1 + cr2 + cr3'
+
+# six factor model
+models$m3 <- 
+    ' mbea =~ mbea1 + mbea2 + mbea3
+    mbep =~ mbep1 + mbep2 + mbep3 
+    cr =~ cr1 + cr2 + cr3 
+    ac =~ ac1 + ac2 + ac3 
+    is =~ is1 + is2 + is3
+    ic =~ ic1 + ic2 + ic3'
+
+
+fits$m1 <- lavaan::cfa(models$m1, data = mlq)
+fits$m2 <- lavaan::cfa(models$m2, data = mlq)
+fits$m3 <- lavaan::cfa(models$m3, data = mlq)
+
+
+summary(fits$m3, fit.measures = TRUE) 
+standardizedSolution(fits$m3)
+
+v$fitindicies <- c("npar",  "chisq", "df", "pvalue", "cfi", "rmsea", 
+                 "rmsea.ci.lower", "rmsea.ci.upper", "srmr")
+
+round(sapply(fits, function(X) fitmeasures(X)[v$fitindicies]), 3)
+```
+
+# Reliability analysis
+```{r}
+# Create the scoring key 
+# i.e., rows are the items of the scale
+# columns are the six scales
+# values are 1, -1, or 0 for positively worded, reversed, or not included item
+meta.mlq
+c$mlq_scales
+
+scored <- scoreItems(keys =  meta.mlq[,v$mlq_scales],
+           items = mlq[,meta.mlq$id])
+round(scored$alpha, 2)
+```
+
+
+# Descriptive Statistics and Correlations
+
+```{r}
+desc <- list()
+desc$cor <- cor(mlq[,c(v$mlq_scales, "goal")])
+desc$mean <- sapply(mlq[,c(v$mlq_scales, "goal")], mean)
+desc$sd <- sapply(mlq[,c(v$mlq_scales, "goal")], sd)
+
+desc$tab <- data.frame(mean = desc$mean, sd = desc$sd, desc$cor)
+
+rtab <- round(desc$tab, 2)
+write.csv(rtab, file = "output/rtab.csv")
+```
+
+
+# Regression models
+```{r}
+# Just transactional 
+v$mlq_transactional
+v$mlq_transformational
+fits <- list()
+
+fits$transactional <- lm(goal ~ mbep + mbea + cr, mlq)
+fits$transformational <- lm(goal ~ ac + is + ic, mlq)
+fits$all <- lm(goal ~ ac + is + ic + mbep + mbea + cr, mlq)
+
+lapply(fits, summary)
+lapply(fits, function(X) summary(X)$adj)
+
+# does adding transactional or transformational add predictions
+anova(fits$transactional, fits$all)
+anova(fits$transformational, fits$all)
+summary(fits$all)
+# standardised betas
+summary(lm.beta::lm.beta(fits$all))
+```
+
+
+
+
+
+
