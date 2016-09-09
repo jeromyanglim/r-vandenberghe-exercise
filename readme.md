@@ -13,6 +13,8 @@ You can download the whole project as a zip file.
 * The completed version of the analyses is contained in the directory
   `completed-vandenberghe-exercise`.
 
+A video giving an overview of the exercise is available here:
+https://www.youtube.com/watch?v=rpFL5hI5qzw
 
 The dataset comes from an online repository:
 
